@@ -13,8 +13,8 @@ var gameConfig = require('./config.json');
 var quadtree = require('simple-quadtree');
 var tree = quadtree(0, 0, gameConfig.width, gameConfig.height);
 
-var players = [];
-var men = [];
+var players = [];   //is an array the best use case? -FL
+var men = [];   
 var sockets = {};
 var removedPlayers = 0; // once it reaches 100 garbage COLLECTION!
 
@@ -45,7 +45,7 @@ function removePlayer (socket) {
     }
    
     delete sockets[socket.id];
-    players.forEach(function (player) {
+    players.forEach(function (player) { //if a lot of people join, is this really best?
         if (player.id === socket.id) player = null;
     });
 }
