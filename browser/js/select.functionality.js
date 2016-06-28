@@ -4,6 +4,8 @@ var drag = false;
 function mouseDown(e) {
   rect.startX = e.pageX - this.offsetLeft;
   rect.startY = e.pageY - this.offsetTop;
+  rect.w = 5;
+  rect.h = 5;
   drag = true;
 }
 
