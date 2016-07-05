@@ -8,27 +8,26 @@ function handleAttackInput (x, y) {
     attackPending = false;
 }
 
-function checkForTarget (x, y) { // loop through all units and see if any are in range of your click
-	for (var otherPlayer in otherPlayers) {
-		if (otherPlayers.hasOwnProperty(otherPlayer)){
-			for (var unitId in otherPlayer.units) {
-				var unit = otherPlayer.units[unitId];
-				if (inRange(unit.pos[0], unit.sprite.size[0] + unit.pos[0], x, x + 5) && 
-					inRange(unit.pos[1], unit.sprite.size[0], y, y + 5)) {
-					unit.sprite.renderEllipse(true); // takes enemy? as argument for red ellipse
-					return [unitId, otherPlayer]; // yes, sends two elements if otherPlayer
-				}
-			}
-		}
+function checkForTarget (x, y) { 
+	// for enemy players
+	var targets = tree.search({
+		minX: x - 2,
+		minY: y - 2,
+		maxX: x + 2,
+		maxY: y + 2
+	});
+
+	if (targets.length) {
+		return targets[0];
 	}
+
 	// friendly fire 
 	for (var unitId in player.units) {
 		var unit = player.units[unitId];
 		if (inRange(unit.pos[0], unit.sprite.size[0] + unit.pos[0], x, x + 5) && 
 			inRange(unit.pos[1], unit.sprite.size[1] + unit.pos[1], y, y + 5)) {
 
-			unit.sprite.renderEllipse(true); // takes enemy? as argument for red ellipse
-			return [unitId]; // just sends back one element if you are a troll
+			return unit; // just sends back one element if you are a troll
 		}
 	}
 	return null;
@@ -36,7 +35,7 @@ function checkForTarget (x, y) { // loop through all units and see if any are in
 
 function setSingleTargetForCurrentSelection (target) {
   currentSelection.forEach(function (elem) {
-    elem.targetUnit = (target.length < 2)? player.units[target[0]] : otherPlayers[target[1]].units[target[0]];
+    elem.attackTarget = target || null;
   });
 }
 // targetpos is an array with an x and y coordinate 
@@ -46,4 +45,76 @@ function setVigilantAttackMove (targetpos) {
     elem.targetpos = targetpos;
   });
 }
+
+function attachTargets () {
+	var attackingUnits = [];
+
+	for (var unitId in player.units) {
+		var unit = player.units[unitId];
+		if (unit.vigilant) {
+			var targets = tree.search({
+				minX: unit.minX,
+				minY: unit.minY,
+				maxX: unit.maxX,
+				maxY: unit.maxY
+			});
+
+			if (targets.length) {
+				unit.attackTarget = targets[0];
+				attackingUnits.push(unit);
+			}
+		}
+	}
+	return attackingUnits;
+}
+
+function checkCombat () {
+	var attackingUnits = attachTargets();
+
+	checkIfBeingHit(); 
+
+	attackingUnits.forEach(function (unit) {
+		unit.queuedpos = unit.queuedpos || unit.targetpos;
+		unit.targetpos = unit.pos;
+
+		if (!unit.lastAttackTaken || Date.now() - unit.lastAttackTaken >= unit.rateOfAttack) {
+			unit.lastAttackTaken = Date.now();
+			
+			var damageDealt = unit.attack - unit.attackTarget.defense;
+			// send attack damage to server
+			socket.emit('damageDone', {victim: unit.attackTarget, damage: damageDealt});
+
+			unit.attackTarget.currentHealth -= (unit.attack - unit.attackTarget.defense);
+			playSoundOnEvent(attackSound);
+
+		}
+
+		if (unit.attackTarget.currentHealth <= 0) {
+			unit.targetpos = unit.queuedpos;
+			unit.queuedpos = null;
+			tree.remove(unit.attackTarget);
+		}
+	})
+}
+
+function checkIfBeingHit () {
+	for (var unitId in player.units) {
+		var unit = player.units[unitId];
+		if (unit.hit) {
+			unit.vigilant = true;
+		}
+	}
+}
+
+function removeDeadUnits () {
+	for (var unitId in player.units) {
+		if (player.units[unitId].currentHealth <= 0) {
+			delete player.units[unitId];
+		}
+	}
+}
+
+
+
+
 

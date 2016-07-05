@@ -110,6 +110,13 @@ io.on('connection', function (socket) {
         socket.broadcast.emit('otherPlayerMoves', playerData);
     })
 
+    socket.on('damageDone', function (damageData) {
+        var victim = damageData.victim;
+        var damage = damageData.damage;
+        // console.log(damageData);
+        socket.broadcast.emit('takeThat', victim, damage);
+    })
+
     socket.on('moneyDiscovered', function (moneyBagData) {
         //increase the wealth of the player
         players[moneyBagData.playerId].wealth += moneyBagData.value;
@@ -129,7 +136,7 @@ io.on('connection', function (socket) {
             newBagName: newBagKeyName.join(","),
             newBagValue: moneyBags[newBagKeyName]
         }
-        console.log(bagUpdate);
+        // console.log(bagUpdate);
         io.emit('deleteAndUpdateMoneyBags', bagUpdate);
         delete moneyBags[moneyBagData.name];
         //replenish the moneyBags object

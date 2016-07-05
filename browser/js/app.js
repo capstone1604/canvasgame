@@ -1,25 +1,49 @@
 var socket = io.connect('http://' + ip + ':3030');
 var currentKing;
+var tree = rbush();
 
 function setupSocket (socket) {
 
     socket.on('otherPlayerJoin', function (otherPlayerData) {
         console.log(otherPlayerData.id + ' has joined!');
+
+        var toBeAddedToTree = [];
+
         newPlayerJoinsAlert(otherPlayerData.username);
+
         // generate the new players sprites
         for (var unitId in otherPlayerData.units) {
             var unit = otherPlayerData.units[unitId];
             unit.sprite = generateSprite(unit.type, false, otherPlayerData.id);
+
+            toBeAddedToTree.push(prepForUnitTree(unit));
         }
         otherPlayers[otherPlayerData.id] = otherPlayerData;
 
+        tree.load(toBeAddedToTree);
     });
 
     socket.on('otherPlayerDC', function (socketId) {
         console.log(socketId + ' left!');
+
+
+        removeFromTreeOnDisconnect(socketId);
+
         var departingUserUsername = otherPlayers[socketId].username;
         newPlayerLeavesAlert(departingUserUsername);
+
         delete otherPlayers[socketId];
+    });
+
+
+    socket.on('takeThat', function (victim, damage) {
+        console.log(victim, damage);
+        if (player.id === victim.socketId) {
+            player.units[victim.id].currentHealth -= damage;
+            player.units[victim.id].hit = true;
+        } else {
+            otherPlayers[victim.socketId].units[victim.id].currentHealth -= damage;
+        }
     });
 }
 
@@ -76,16 +100,23 @@ function init() {
         for each of the other players, assign each unit,
         its appropriate sprite
         */
+        var toBeAddedToTree = [];
 
         for (var otherPlayer in otherPlayers){
             if (otherPlayers.hasOwnProperty(otherPlayer)){
                 //for each player assign each unit its appropriate sprint
-                for (var unitId in otherPlayer.units) {
-                    var unit = otherPlayer.units[unitId];
+                for (var unitId in otherPlayers[otherPlayer].units) {
+                    var unit = otherPlayers[otherPlayer].units[unitId];
                     unit.sprite = generateSprite(unit.type, false, otherPlayer.id);
+
+                    // add unit to an array built to be inserted into r-Tree
+                    // better than adding one by one because bulk insert is way faster
+                    toBeAddedToTree.push(prepForUnitTree(unit));
+                    
                 }
             }
         }
+        tree.load(toBeAddedToTree);
     });
 
     socket.on("gameReady", function(gameData, king) {
@@ -94,10 +125,12 @@ function init() {
         player = gameData.playerData;
         wealth = gameData.playerData.wealth;
         $("#player-wealth-display").text(wealth);
+
         for (var unitId in player.units) {
             var unit = player.units[unitId];
             unit.sprite = generateSprite(unit.type, true, player.id);
         }
+
         setupMoneyBags(gameData.moneyBags);
         setupSocket(socket);
         drawViewport();
@@ -154,11 +187,16 @@ function update(dt) {
 
     checkCollisions();
 
+    checkCombat();
+
+    removeDeadUnits();
+
     socket.emit("playerMoves", player);
     //socket.emit("playerMoves", {id: player.id, unitsPos: getUnitPosByPlayer(player)});
 
     socket.on("otherPlayerMoves", function(playerData) {
-        otherPlayers[playerData.id]=playerData;
+        // otherPlayers[playerData.id] = Object.assign(otherPlayers[playerData.id], playerData);
+        otherPlayers[playerData.id] = playerData;
         //setUnitPosByPlayer(otherPlayers[playerData.id], playerData.units);
     });
 
@@ -166,27 +204,6 @@ function update(dt) {
 
 };
 
-
-// function checkPlayerBounds() {
-//     // Check bounds
-
-//     player.units.forEach(function(unit){
-//         if(unit.pos[0] < 0) {
-//             unit.pos[0] = 0;
-//         }
-//         else if(unit.pos[0] > canvas.width - unit.sprite.size[0]) {
-//             unit.pos[0] = canvas.width - unit.sprite.size[0];
-//         }
-
-//         if(unit.pos[1] < 0) {
-//             unit.pos[1] = 0;
-//         }
-//         else if(unit.pos[1] > canvas.height - unit.sprite.size[1]) {
-//             unit.pos[1] = canvas.height - unit.sprite.size[1];
-//         }
-//     })
-// }
-// Draw everything
 
 function render() {
 

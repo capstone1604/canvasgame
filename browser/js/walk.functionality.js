@@ -2,6 +2,9 @@ function walk(dt){
     for (var unitId in player.units) {
         var unit = player.units[unitId];
         if (unit.targetpos){
+
+            prepForCombat(unit); // for changing their range radius on R tree
+
             if (Math.abs(unit.pos[0] - unit.targetpos[0]) > 5 || Math.abs(unit.pos[1] - unit.targetpos[1]) > 5){
                 var distance = unit.speed*dt;
                 if (unit.type === 'hero' && player.id === currentKing){
@@ -124,6 +127,7 @@ function walk(dt){
 
 
                 if (unit.type === 'soldier'){
+
                     unit.sprite._index += 0.25;
                     switch(detectBuildings(unit, dt)){
                         case 'down':
